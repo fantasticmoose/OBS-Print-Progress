@@ -11,3 +11,7 @@ desktop.ini
 node_modules/
 dist/
 build/
+
+# Personal overlays (keep local)
+hoss.html
+sam.html
