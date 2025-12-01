@@ -23,16 +23,17 @@
         (function applyConfig(cfg) {
             if (!cfg) return;
             const b = document.body;
+            const ip = cfg.ip || b.dataset.printerIp || 'localhost';
             b.dataset.printerName = cfg.name || b.dataset.printerName || 'Printer';
-            b.dataset.printerIp = cfg.ip || b.dataset.printerIp || 'localhost';
+            b.dataset.printerIp = ip;
             b.dataset.cameraUrl = cfg.camera || b.dataset.cameraUrl || '';
             b.dataset.updateInterval = String(cfg.updateInterval || cfg.intervalMs || b.dataset.updateInterval || 2000);
             const debugVal = cfg.debug;
             b.dataset.debug = String(debugVal === undefined ? b.dataset.debug || 'false' : debugVal);
 
-            if (!b.dataset.cameraUrl && cfg.ip) {
+            if (!b.dataset.cameraUrl && ip) {
                 // Default webcam path so the IP only has to be set once.
-                b.dataset.cameraUrl = `http://${cfg.ip}/webcam/?action=stream`;
+                b.dataset.cameraUrl = 'http://' + ip + '/webcam/?action=stream';
             }
         })(window.PRINTER_CONFIG);
     </script>
