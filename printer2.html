@@ -17,6 +17,8 @@
             name: 'Printer 2',
             ip: 'printer2.local',
             camera: '', // leave blank to auto-build from IP
+            flipHorizontal: false,
+            flipVertical: false,
             updateInterval: 2000, // ms
             debug: false
         };
@@ -27,6 +29,8 @@
             b.dataset.printerName = cfg.name || b.dataset.printerName || 'Printer';
             b.dataset.printerIp = ip;
             b.dataset.cameraUrl = cfg.camera || b.dataset.cameraUrl || '';
+            b.dataset.cameraFlipX = String(cfg.flipHorizontal ?? b.dataset.cameraFlipX ?? 'false');
+            b.dataset.cameraFlipY = String(cfg.flipVertical ?? b.dataset.cameraFlipY ?? 'false');
             b.dataset.updateInterval = String(cfg.updateInterval || cfg.intervalMs || b.dataset.updateInterval || 2000);
             const debugVal = cfg.debug;
             b.dataset.debug = String(debugVal === undefined ? b.dataset.debug || 'false' : debugVal);

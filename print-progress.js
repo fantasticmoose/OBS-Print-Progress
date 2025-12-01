@@ -13,6 +13,8 @@
     const UPDATE_INTERVAL = Number(body.dataset.updateInterval) || 2000;
     const DEBUG = (body.dataset.debug || '').toLowerCase() === 'true';
     const CAMERA_URL = body.dataset.cameraUrl || '';
+    const CAMERA_FLIP_X = (body.dataset.cameraFlipX || 'false').toLowerCase() === 'true';
+    const CAMERA_FLIP_Y = (body.dataset.cameraFlipY || 'false').toLowerCase() === 'true';
 
     // Set printer name on load
     const printerNameEl = document.getElementById('printerName');
@@ -24,6 +26,12 @@
     if (cameraEl) {
         if (CAMERA_URL) {
             cameraEl.src = CAMERA_URL;
+            const flips = [];
+            if (CAMERA_FLIP_X) flips.push('scaleX(-1)');
+            if (CAMERA_FLIP_Y) flips.push('scaleY(-1)');
+            if (flips.length) {
+                cameraEl.style.transform = flips.join(' ');
+            }
         } else {
             cameraEl.classList.add('hidden');
         }
