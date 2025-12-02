@@ -44,6 +44,49 @@
         source: null
     };
 
+    async function extractThumbnailFromGcode(filename) {
+    try {
+        // Make sure we have the right path, e.g. "gcodes/Articulated_Lizard_Curl_PLA_3h48m.gcode"
+        const path = normalizeFilename(filename);  // uses your existing helper
+        if (!path) return null;
+
+        // IMPORTANT: do NOT use encodeURIComponent here, it turns "gcodes/..." into "gcodes%2F..."
+        const url = `http://${PRINTER_IP}/server/files/${encodeURI(path)}`;
+
+        const resp = await fetch(url, {
+            headers: { Range: "bytes=0-250000" }
+        });
+
+        if (!resp.ok) {
+            console.warn("Thumbnail header fetch failed:", resp.status, url);
+            return null;
+        }
+
+        const text = await resp.text();
+
+        // Find all thumbnail blocks, keep the last (usually 300x300)
+        const blockRegex = /; thumbnail begin \d+x\d+ \d+([\s\S]*?); thumbnail end/g;
+        let match;
+        let lastBlock = null;
+
+        while ((match = blockRegex.exec(text)) !== null) {
+            const block = match[1];
+            const b64 = block
+                .split("\n")
+                .map(line => line.trim().replace(/^;/, "").trim())
+                .filter(Boolean)
+                .join("");
+            lastBlock = b64;
+        }
+
+        return lastBlock;
+    } catch (err) {
+        console.error("extractThumbnailFromGcode error:", err);
+        return null;
+    }
+}
+
+
     async function fetchPrintStatus() {
         try {
             const response = await fetch(`http://${PRINTER_IP}/printer/objects/query?display_status&print_stats&virtual_sdcard&extruder&heater_bed&toolhead`);
@@ -119,7 +162,51 @@
                 });
                 
                 document.getElementById('filename').textContent = formatFilename(printStats.filename) || 'Unknown';
-                
+               // --- Thumbnail (G-code fallback) ---
+const thumbEl = document.getElementById("thumbnail");
+
+if (thumbEl) {
+    const normalized = normalizeFilename(printStats.filename);
+    const loadedFor = thumbEl.dataset.loadedFor || "";
+
+    if (normalized && loadedFor !== normalized) {
+        thumbEl.dataset.loadedFor = normalized;
+
+        extractThumbnailFromGcode(normalized).then(b64 => {
+            if (b64) {
+                thumbEl.src = `data:image/png;base64,${b64}`;
+                thumbEl.style.display = "block";
+
+                // 🟩 Update filename under thumbnail
+                const fileLabel = document.getElementById("thumbnailFilename");
+                if (fileLabel) {
+                    fileLabel.textContent = printStats.filename || "--";
+                }
+
+            } else {
+                thumbEl.src = "";
+                thumbEl.style.display = "none";
+
+                const fileLabel = document.getElementById("thumbnailFilename");
+                if (fileLabel) {
+                    fileLabel.textContent = "--";
+                }
+            }
+        }).catch(err => {
+            console.error("Thumbnail load error:", err);
+            thumbEl.src = "";
+            thumbEl.style.display = "none";
+
+            const fileLabel = document.getElementById("thumbnailFilename");
+            if (fileLabel) {
+                fileLabel.textContent = "--";
+            }
+        });
+    }
+}
+
+
+
             } else if (state === 'paused') {
                 statusElement.className = 'status-pill idle';
                 document.getElementById('layerInfo').textContent = '--';
@@ -162,37 +249,79 @@
     }
 
     async function fetchChamberTemp() {
-        const candidates = [
-            'temperature_sensor chamber',
-            'temperature_sensor chamber_temp',
-            'temperature_sensor chamber-temp',
-            'heater_generic chamber'
-        ];
+    // Base candidates (lowercase forms)
+    const baseCandidates = [
+        'temperature_sensor chamber',
+        'temperature_sensor chamber_temp',
+        'heater_generic chamber'
+    ];
 
-        for (const obj of candidates) {
-            try {
-                const resp = await fetch(`http://${PRINTER_IP}/printer/objects/query?${encodeURIComponent(obj)}`);
-                if (!resp.ok) continue;
-                const json = await resp.json();
-                const status = json.result?.status;
-                if (!status) continue;
-                const key = Object.keys(status)[0];
-                const entry = status[key] || {};
-                const current = Math.round(entry.temperature ?? entry.temp ?? entry.current ?? entry.temper);
-                const targetRaw = entry.target ?? entry.target_temp ?? entry.target_temperature;
-                const target = targetRaw !== undefined && targetRaw !== null ? Math.round(targetRaw) : Math.round(entry.temperature ?? entry.temp ?? 0);
-                if (Number.isFinite(current)) {
-                    return {
-                        current,
-                        target: Number.isFinite(target) ? target : current
-                    };
-                }
-            } catch (err) {
-                // ignore and try next
-            }
-        }
-        return null;
+    // Generate common capitalization variants of the last word (chamber / chamber_temp)
+    function caseVariants(name) {
+        const lower = name.toLowerCase();
+        const firstUpper = lower.charAt(0).toUpperCase() + lower.slice(1);
+        const upper = lower.toUpperCase();
+        return [...new Set([lower, firstUpper, upper])];
     }
+
+    // Expand base candidates into multiple capitalization variants
+    const expandedCandidates = [];
+    for (const obj of baseCandidates) {
+        const parts = obj.split(' ');
+        if (parts.length < 2) {
+            expandedCandidates.push(obj);
+            continue;
+        }
+        const className = parts.slice(0, -1).join(' '); // "temperature_sensor" / "heater_generic"
+        const tail = parts[parts.length - 1];           // "chamber" / "chamber_temp"
+        for (const variant of caseVariants(tail)) {
+            expandedCandidates.push(`${className} ${variant}`);
+        }
+    }
+
+    // Try each candidate until one returns a valid temperature
+    for (const obj of expandedCandidates) {
+        try {
+            const resp = await fetch(`http://${PRINTER_IP}/printer/objects/query?${encodeURIComponent(obj)}`);
+            if (!resp.ok) continue;
+
+            const json = await resp.json();
+            const status = json.result?.status;
+            if (!status || !Object.keys(status).length) continue;
+
+            const key = Object.keys(status)[0];
+            const entry = status[key] || {};
+
+            const currentRaw =
+                entry.temperature ??
+                entry.temp ??
+                entry.current ??
+                entry.temper;
+
+            const current = Number.isFinite(currentRaw) ? Math.round(currentRaw) : null;
+            if (current === null) continue;
+
+            const targetRaw =
+                entry.target ??
+                entry.target_temp ??
+                entry.target_temperature;
+
+            const target = Number.isFinite(targetRaw)
+                ? Math.round(targetRaw)
+                : current;
+
+            // Success – return as soon as we find a valid sensor
+            return { current, target };
+        } catch (e) {
+            // ignore this candidate and try the next
+        }
+    }
+
+    // No usable chamber sensor found
+    return null;
+}
+
+
 
     function formatLayerInfo(current, total) {
         const hasCurrent = current !== null && current !== undefined;
