@@ -1,0 +1,13 @@
+/* Blue Theme Example
+   To use: Add this after print-progress.css in your HTML
+   <link rel="stylesheet" href="theme-blue.css">
+*/
+
+:root {
+    /* Override theme colors */
+    --theme-primary: #00aaff;        /* Bright blue */
+    --theme-secondary: #0088cc;      /* Darker blue */
+    --theme-progress: #00aaff;       /* Progress bar color */
+    --theme-glow: rgba(0, 170, 255, 0.15);  /* Loading state glow */
+    --theme-thumbnail-glow: rgba(0, 170, 255, 0.4);  /* Thumbnail border glow */
+}

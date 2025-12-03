@@ -1,0 +1,13 @@
+/* Red Theme Example
+   To use: Add this after print-progress.css in your HTML
+   <link rel="stylesheet" href="theme-red.css">
+*/
+
+:root {
+    /* Override theme colors */
+    --theme-primary: #ff4444;        /* Bright red */
+    --theme-secondary: #cc2222;      /* Darker red */
+    --theme-progress: #ff4444;       /* Progress bar color */
+    --theme-glow: rgba(255, 68, 68, 0.15);  /* Loading state glow */
+    --theme-thumbnail-glow: rgba(255, 68, 68, 0.4);  /* Thumbnail border glow */
+}

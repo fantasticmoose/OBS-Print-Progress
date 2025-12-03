@@ -1,0 +1,13 @@
+/* Green Theme Example
+   To use: Add this after print-progress.css in your HTML
+   <link rel="stylesheet" href="theme-green.css">
+*/
+
+:root {
+    /* Override theme colors */
+    --theme-primary: #00ff88;        /* Bright green */
+    --theme-secondary: #00cc66;      /* Darker green */
+    --theme-progress: #00ff88;       /* Progress bar color */
+    --theme-glow: rgba(0, 255, 136, 0.15);  /* Loading state glow */
+    --theme-thumbnail-glow: rgba(0, 255, 136, 0.4);  /* Thumbnail border glow */
+}
