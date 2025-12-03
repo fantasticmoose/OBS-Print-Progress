@@ -7,6 +7,7 @@ Single browser source that targets any printer via a query param and `printers.j
 - `printers.json` — array of printer configs (id, ip, camera, flips, etc.)
 - `print-progress.css` — shared styling
 - `print-progress.js` — shared logic (polls printer + updates overlays)
+- `start-server.bat` — Windows helper to run a local server (and optionally launch OBS)
 
 Keep everything in the same folder.
 
@@ -29,6 +30,8 @@ Add this to `mainsail.cfg` (or your main `moonraker.conf`), adjusting the IPs to
 cors_domains:
   http://localhost
   http://127.0.0.1
+  http://localhost:8000
+  http://<your-obs-ip>:8000
   http://192.168.x.x   # your OBS/desktop IP
   null                 # allows file access
 ```
@@ -38,14 +41,12 @@ Camera orientation tips:
 - In OBS you can also right-click the Browser source → Transform → Flip to adjust per-source.
 
 ## Select a printer in OBS
-1) Add a **Browser** source in OBS and point it to `printer.html` on disk.
-2) Set the source width/height you want; the overlay will scale to fit.
-3) Append `?printer=<id>` to the file URL (e.g., `file:///C:/path/printer.html?printer=hoss`). If omitted, the first entry in `printers.json` (or `.example` as a fallback) is used.
-4) If loading from `file://` blocks `printers.json` (CORS), either:
-   - on Windows, double-click `start-server.bat` (runs `python -m http.server 8000`) and point OBS to `http://localhost:8000/printer.html?printer=hoss`,
-   - on macOS/Linux: `python -m http.server 8000` in this folder, then open `http://localhost:8000/printer.html?printer=hoss`,
-   - embed the JSON inline inside `printer.html` as `<script id="printers-config" type="application/json">{"printers":[...]}</script>` (no CORS),
-   - or pass config via query params (`?ip=...&name=...&camera=...&flipX=1&flipY=0&chamber=1`), which bypasses the JSON file.
+1) Start a local server:
+   - Windows: double-click `start-server.bat`
+   - macOS/Linux: run `./start-server.sh` (ensure it’s executable: `chmod +x start-server.sh`)
+2) In OBS, add a **Browser** source and set the URL to `http://localhost:8000/printer.html?printer=<id>` (matching an `id` from `printers.json`).
+3) Set the source width/height you want; the overlay will scale to fit.
+4) If loading over `file://` fails due to CORS, serve via the local server (above), embed configs inline, or pass everything via query params (`?ip=...&name=...&camera=...&flipX=1&flipY=0&chamber=1`).
 5) If the camera doesn't load, confirm the `camera` URL is reachable and supports browser playback (MJPEG/RTSP via OBS).
 
 ## Notes
