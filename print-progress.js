@@ -106,16 +106,25 @@
 
     async function fetchJsonConfig(path) {
         const url = new URL(path, window.location.href).href;
-        // Try fetch (works when served via http/https or permissive file policies)
+        // Try fetch with timeout
         try {
-            const resp = await fetch(url);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+            
+            const resp = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeout);
+            
             if (resp.ok) {
                 const json = await resp.json();
                 if (Array.isArray(json)) return json;
                 if (Array.isArray(json.printers)) return json.printers;
             }
         } catch (err) {
-            console.warn(`Could not fetch ${url}:`, err?.message || err);
+            if (err.name === 'AbortError') {
+                console.warn(`Timeout fetching ${url}`);
+            } else {
+                console.warn(`Could not fetch ${url}:`, err?.message || err);
+            }
         }
 
         // Fallback to XHR for file:// contexts where fetch is blocked by CORS
@@ -244,9 +253,13 @@
         applyConfig(cfg);
         setPrinterName();
         setupCamera();
-        await updateChamber();
-        await fetchPrintStatus();
+        
+        // Start fetching immediately without waiting for chamber
+        fetchPrintStatus();
         setInterval(fetchPrintStatus, UPDATE_INTERVAL);
+        
+        // Update chamber in background (don't block)
+        updateChamber();
     }
 
     async function extractThumbnailFromGcode(filename) {
@@ -257,7 +270,7 @@
             const url = `http://${PRINTER_IP}/server/files/${encodeURI(path)}`;
 
             const resp = await fetch(url, {
-                headers: { Range: "bytes=0-250000" }
+                headers: { Range: "bytes=0-100000" }  // Reduced from 250KB to 100KB
             });
 
             if (!resp.ok) {
@@ -779,13 +792,13 @@
             try {
                 const response = await fetch(`http://${PRINTER_IP}/server/files/metadata?filename=${encodeURIComponent(candidate)}`);
                 if (!response.ok) {
-                    console.warn('Metadata API 404/err for', candidate, response.status);
+                    // Don't log 404s - metadata might not be ready yet
                     continue;
                 }
                 const data = await response.json();
                 return data.result;
             } catch (err) {
-                console.error('Error fetching metadata from API:', candidate, err);
+                // Silently continue to next candidate
             }
         }
         return null;
@@ -808,7 +821,7 @@
                 });
 
                 if (!response.ok) {
-                    console.warn('Metadata gcode fetch failed', candidate, response.status);
+                    // Silently continue - file might not be accessible
                     continue;
                 }
 
@@ -821,7 +834,7 @@
 
             return null;
         } catch (err) {
-            console.error('Error parsing metadata from gcode:', err);
+            // Silently fail - metadata is optional
             return null;
         }
     }
