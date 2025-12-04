@@ -1,32 +1,5 @@
-/**
- * OBS Print Progress Overlay for Klipper/Moonraker
- * 
- * Displays real-time 3D printer status including:
- * - Print progress percentage and progress bar
- * - Current/total layer information
- * - Hotend, bed, and optional chamber temperatures
- * - Time estimates (progress-based, slicer estimate, elapsed time)
- * - Live camera feed
- * - G-code thumbnail preview
- * 
- * Features:
- * - Multi-printer support via printers.json
- * - Automatic metadata extraction from G-code files
- * - Fallback layer/time calculations from filenames
- * - Theme system with CSS variables
- * - Automatic chamber temperature detection
- * - Debug mode for troubleshooting
- */
-
 (async function () {
-    // ============================================================
-    // UTILITY FUNCTIONS (must be defined first due to hoisting)
-    // ============================================================
-    
-    /**
-     * Parse various boolean representations to actual boolean
-     * Handles: true/false, 1/0, yes/no, string/boolean types
-     */
+    // Utility functions needed during initialization
     function parseBool(val) {
         if (val === undefined || val === null) return false;
         if (typeof val === 'boolean') return val;
@@ -36,38 +9,22 @@
 
     const body = document.body || document.documentElement;
 
-    // ============================================================
-    // CONFIGURATION VARIABLES
-    // These are initialized from HTML data attributes, then
-    // overridden by printers.json or query parameters
-    // ============================================================
-    
     let PRINTER_IP = body.dataset.printerIp || 'localhost';
     let PRINTER_NAME = body.dataset.printerName || 'Printer';
-    let UPDATE_INTERVAL = Number(body.dataset.updateInterval) || 2000;  // Polling interval in ms
+    let UPDATE_INTERVAL = Number(body.dataset.updateInterval) || 2000;
     let DEBUG = parseBool(body.dataset.debug || 'false');
     let CAMERA_URL = body.dataset.cameraUrl || '';
-    let CAMERA_FLIP_X = parseBool(body.dataset.cameraFlipX || 'false');  // Mirror horizontally
-    let CAMERA_FLIP_Y = parseBool(body.dataset.cameraFlipY || 'false');  // Flip vertically
+    let CAMERA_FLIP_X = parseBool(body.dataset.cameraFlipX || 'false');
+    let CAMERA_FLIP_Y = parseBool(body.dataset.cameraFlipY || 'false');
     let SHOW_CHAMBER = parseBool(body.dataset.chamberEnabled || body.dataset.showChamber || 'false');
 
-    // ============================================================
-    // METADATA CACHE
-    // Stores parsed G-code metadata to avoid re-fetching
-    // ============================================================
-    
     const metadataCache = {
-        filename: null,    // Current filename being tracked
-        data: null,        // Parsed metadata (layer_height, estimated_time, etc.)
-        source: null       // Where metadata came from: 'api', 'gcode-header', or null
+        filename: null,
+        data: null,
+        source: null
     };
 
-    // ============================================================
-    // CHAMBER TEMPERATURE DETECTION
-    // Klipper doesn't have a standard chamber sensor name, so we
-    // try common patterns and cache the result
-    // ============================================================
-    
+    // Chamber discovery cache (needs to be defined before init to avoid TDZ)
     const chamberCandidates = [
         'temperature_sensor chamber',
         'temperature_sensor chamber_temp',
@@ -80,18 +37,10 @@
         'temperature_sensor enclosure_upper',
         'temperature_sensor chamber_average'
     ];
-    let chamberObjectName = null;        // Cached chamber sensor name
-    let objectListCache = null;          // Cached list of available Klipper objects
-    let objectListFetchedAt = 0;         // Timestamp of last object list fetch
+    let chamberObjectName = null;
+    let objectListCache = null;
+    let objectListFetchedAt = 0;
 
-    // ============================================================
-    // CONFIGURATION FUNCTIONS
-    // ============================================================
-    
-    /**
-     * Apply configuration from printers.json or query params
-     * Updates global variables and HTML data attributes
-     */
     function applyConfig(cfg) {
         const b = body;
         const config = cfg || {};
@@ -130,15 +79,6 @@
         b.dataset.debug = String(DEBUG);
     }
 
-    /**
-     * Load printer configuration from multiple sources (priority order):
-     * 1. printers.json file (main config)
-     * 2. Query parameters (?printer=id or ?ip=...&name=...)
-     * 3. Inline PRINTER_CONFIG in HTML
-     * 4. HTML data attributes (fallback)
-     * 
-     * @returns {Object} Merged configuration object
-     */
     async function loadConfig() {
         const query = new URLSearchParams(window.location.search);
         const key = (
@@ -751,26 +691,12 @@
         return null;
     }
 
-    /**
-     * Get elapsed time from print_stats
-     * Prefers total_duration (includes pauses), falls back to print_duration
-     */
     function getElapsedTime(printStats) {
         const totalDuration = asNumber(printStats?.total_duration);
         const printDuration = asNumber(printStats?.print_duration);
         return totalDuration ?? printDuration ?? null;
     }
 
-    /**
-     * Get current and total layer information from multiple sources
-     * Priority order:
-     * 1. Klipper's print_stats.info (slicer embedded data)
-     * 2. Calculated from metadata + toolhead Z position
-     * 3. Calculated from progress percentage + total layers
-     * 4. Fallback estimate from Z height assuming 0.2mm layers
-     * 
-     * @returns {Object} { currentLayer, totalLayer }
-     */
     function getLayerInfo(printStats, displayStatus, toolhead) {
         const slicerInfo = printStats.info || {};
         const slicerCurrent = asNumber(
@@ -804,13 +730,6 @@
         };
     }
 
-    /**
-     * Calculate layer info from metadata and current Z position
-     * Uses layer_height, first_layer_height, and object_height from metadata
-     * Current layer = (currentZ - firstLayerHeight) / layerHeight + 1
-     * 
-     * @returns {Object} { current, total } - both can be null if data unavailable
-     */
     function computeLayerFromMetadata(toolhead, metadata) {
         if (!metadata) return { current: null, total: null };
         
@@ -841,13 +760,6 @@
         return { current, total };
     }
 
-    /**
-     * Calculate current layer from print progress percentage
-     * Multiplies progress (0-1) by total layer count
-     * Less accurate than Z-based calculation but works when metadata available
-     * 
-     * @returns {Object} { current, total } - current can be null if no progress
-     */
     function computeLayerFromProgress(displayStatus, metadata) {
         if (!metadata) return { current: null, total: null };
         
@@ -875,24 +787,11 @@
         return null;
     }
 
-    /**
-     * Convert value to number if possible, return null if invalid
-     * Used for safely parsing numeric metadata values
-     */
     function asNumber(value) {
         const num = Number(value);
         return Number.isFinite(num) ? num : null;
     }
 
-    /**
-     * Ensure metadata is loaded and cached for the current print job
-     * Tries multiple strategies:
-     * 1. Moonraker metadata API (if file has been analyzed)
-     * 2. Parse G-code header comments
-     * 3. Extract layer height from filename (e.g., "_0.2_" = 0.2mm)
-     * 4. Extract estimated time from filename (e.g., "1h46m" = 1hr 46min)
-     * 5. Calculate missing values from available data
-     */
     async function ensureMetadataLoaded(filename, state) {
         if (state !== 'printing' || !filename) {
             return;
@@ -909,20 +808,6 @@
         metadataCache.source = metaResult?.source || null;
         
         if (DEBUG) console.log('[OBS Print Progress] Raw metadata before filename parsing:', metadataCache.data);
-        
-        // ============================================================
-        // FILENAME-BASED METADATA EXTRACTION
-        // When Moonraker hasn't analyzed the file yet (404 on metadata API),
-        // we can extract useful info from common filename patterns:
-        // 
-        // Layer Height: "_0.2_" or ".0.2." or "0.2mm" → 0.2mm
-        // Estimated Time: "1h46m" → 1 hour 46 minutes
-        //                 "2h30m" → 2 hours 30 minutes  
-        //                 "45m" → 45 minutes
-        // 
-        // This allows the overlay to work immediately instead of showing
-        // blank values for the first few seconds of a print.
-        // ============================================================
         
         // Try to extract layer height from filename as last resort
         if (metadataCache.data && !metadataCache.data.layer_height) {
