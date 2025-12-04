@@ -91,6 +91,15 @@
     /**
      * Apply configuration from printers.json or query params
      * Updates global variables and HTML data attributes
+     * 
+     * @param {Object} cfg - Configuration object with printer settings
+     * @param {string} [cfg.name] - Printer display name
+     * @param {string} [cfg.ip] - Printer IP address or hostname
+     * @param {string} [cfg.cameraUrl] - Camera stream URL
+     * @param {boolean} [cfg.cameraFlipX] - Mirror camera horizontally
+     * @param {boolean} [cfg.cameraFlipY] - Flip camera vertically
+     * @param {boolean} [cfg.chamberEnabled] - Show chamber temperature
+     * @param {number} [cfg.updateInterval] - Polling interval in milliseconds
      */
     function applyConfig(cfg) {
         const b = body;
@@ -128,6 +137,109 @@
         b.dataset.chamberEnabled = String(SHOW_CHAMBER);
         b.dataset.updateInterval = String(UPDATE_INTERVAL);
         b.dataset.debug = String(DEBUG);
+    }
+
+    /**
+     * Validate printer configuration object
+     * Checks for required fields and valid values
+     * 
+     * @param {Object} config - Configuration object to validate
+     * @param {boolean} [isFromList=false] - Whether this is from printers.json (requires 'id' field)
+     * @returns {{valid: boolean, errors: string[]}} Validation result
+     */
+    function validateConfig(config, isFromList = false) {
+        const errors = [];
+        
+        if (!config || typeof config !== 'object') {
+            errors.push('Configuration must be an object');
+            return { valid: false, errors };
+        }
+
+        // Required fields for printers.json entries
+        if (isFromList) {
+            if (!config.id || typeof config.id !== 'string' || !config.id.trim()) {
+                errors.push('Printer configuration missing required "id" field');
+            }
+        }
+
+        // Required fields for all configs
+        if (!config.name && !config.label) {
+            errors.push('Printer configuration missing "name" field');
+        }
+        
+        if (!config.ip && !config.host) {
+            errors.push('Printer configuration missing "ip" field (IP address or hostname)');
+        } else {
+            const ip = config.ip || config.host;
+            if (typeof ip !== 'string' || !ip.trim()) {
+                errors.push('Printer "ip" must be a non-empty string');
+            }
+        }
+
+        // Optional field validation
+        if (config.updateInterval !== undefined) {
+            const interval = Number(config.updateInterval);
+            if (!Number.isFinite(interval) || interval < 500 || interval > 60000) {
+                errors.push('updateInterval must be between 500 and 60000 milliseconds');
+            }
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors
+        };
+    }
+
+    /**
+     * Validate array of printer configurations
+     * 
+     * @param {Array} printerList - Array of printer config objects
+     * @returns {{valid: boolean, errors: string[], validConfigs: Array}} Validation result
+     */
+    function validatePrinterList(printerList) {
+        if (!Array.isArray(printerList)) {
+            return {
+                valid: false,
+                errors: ['printers.json must contain a "printers" array'],
+                validConfigs: []
+            };
+        }
+
+        if (printerList.length === 0) {
+            return {
+                valid: false,
+                errors: ['printers.json "printers" array is empty'],
+                validConfigs: []
+            };
+        }
+
+        const allErrors = [];
+        const validConfigs = [];
+        const ids = new Set();
+
+        printerList.forEach((config, index) => {
+            const result = validateConfig(config, true);
+            
+            if (!result.valid) {
+                result.errors.forEach(err => {
+                    allErrors.push(`Printer #${index + 1}: ${err}`);
+                });
+            } else {
+                // Check for duplicate IDs
+                if (ids.has(config.id)) {
+                    allErrors.push(`Printer #${index + 1}: Duplicate id "${config.id}"`);
+                } else {
+                    ids.add(config.id);
+                    validConfigs.push(config);
+                }
+            }
+        });
+
+        return {
+            valid: allErrors.length === 0 && validConfigs.length > 0,
+            errors: allErrors,
+            validConfigs
+        };
     }
 
     /**
@@ -180,23 +292,46 @@
         const inlineList = readInlinePrinterList();
         if (inlineList) {
             console.log('[OBS Print Progress] Using inline printer list');
-            return inlineList;
+            const validation = validatePrinterList(inlineList);
+            if (!validation.valid) {
+                console.error('[OBS Print Progress] Inline printer list validation errors:', validation.errors);
+                showConfigError(`Configuration errors:\n${validation.errors.join('\n')}`);
+            }
+            return validation.validConfigs.length > 0 ? validation.validConfigs : inlineList;
         }
 
         // Global JS variable fallback (window.PRINTERS or window.PRINTER_CONFIGS)
         const globalList = readGlobalPrinterList();
         if (globalList) {
             console.log('[OBS Print Progress] Using global printer list');
-            return globalList;
+            const validation = validatePrinterList(globalList);
+            if (!validation.valid) {
+                console.error('[OBS Print Progress] Global printer list validation errors:', validation.errors);
+                showConfigError(`Configuration errors:\n${validation.errors.join('\n')}`);
+            }
+            return validation.validConfigs.length > 0 ? validation.validConfigs : globalList;
         }
 
         // First attempt: printers.json (preferred)
         const main = await fetchJsonConfig('printers.json');
-        if (main) return main;
+        if (main) {
+            const validation = validatePrinterList(main);
+            if (!validation.valid) {
+                console.error('[OBS Print Progress] printers.json validation errors:', validation.errors);
+                showConfigError(`Configuration errors in printers.json:\n${validation.errors.join('\n')}`);
+            }
+            return validation.validConfigs.length > 0 ? validation.validConfigs : main;
+        }
 
         // Fallback: example file (template)
         const example = await fetchJsonConfig('printers.json.example');
-        if (example) return example;
+        if (example) {
+            const validation = validatePrinterList(example);
+            if (!validation.valid) {
+                console.error('[OBS Print Progress] printers.json.example validation errors:', validation.errors);
+            }
+            return validation.validConfigs.length > 0 ? validation.validConfigs : example;
+        }
 
         return null;
     }
@@ -293,6 +428,10 @@
         });
     }
 
+    /**
+     * Parse query parameters into configuration object
+     * Supports: ?debug=true, ?ip=..., ?name=..., ?camera=..., ?flipX=1, ?flipY=1, ?chamber=1, ?interval=2000
+     */
     function parseQueryConfig(query) {
         if (!query) return {};
         const cfg = {};
@@ -329,25 +468,49 @@
         }
     }
 
+    /**
+     * Setup camera feed with retry logic
+     * Automatically retries failed camera loads up to 3 times with exponential backoff
+     */
     function setupCamera() {
         const cameraEl = document.getElementById('cameraFeed');
         if (!cameraEl) return;
+        
         if (CAMERA_URL) {
-            cameraEl.src = CAMERA_URL;
-            cameraEl.classList.remove('hidden');
-            const flips = [];
-            if (CAMERA_FLIP_X) flips.push('scaleX(-1)');
-            if (CAMERA_FLIP_Y) flips.push('scaleY(-1)');
-            cameraEl.style.transform = flips.join(' ');
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            const loadCamera = () => {
+                cameraEl.src = CAMERA_URL + (retryCount > 0 ? `?retry=${retryCount}&t=${Date.now()}` : '');
+                cameraEl.classList.remove('hidden');
+                const flips = [];
+                if (CAMERA_FLIP_X) flips.push('scaleX(-1)');
+                if (CAMERA_FLIP_Y) flips.push('scaleY(-1)');
+                cameraEl.style.transform = flips.join(' ');
+            };
             
             // Show camera only when loaded successfully
             cameraEl.onload = () => {
                 cameraEl.classList.add('loaded');
+                if (DEBUG && retryCount > 0) {
+                    console.log(`[OBS Print Progress] Camera loaded successfully after ${retryCount} retries`);
+                }
             };
+            
             cameraEl.onerror = () => {
                 cameraEl.classList.remove('loaded');
-                console.warn('Camera feed failed to load');
+                retryCount++;
+                
+                if (retryCount <= maxRetries) {
+                    const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 8000); // Exponential backoff: 1s, 2s, 4s
+                    console.warn(`[OBS Print Progress] Camera feed failed to load, retrying in ${delay}ms (attempt ${retryCount}/${maxRetries})...`);
+                    setTimeout(loadCamera, delay);
+                } else {
+                    console.error('[OBS Print Progress] Camera feed failed to load after all retries');
+                }
             };
+            
+            loadCamera();
         } else {
             cameraEl.classList.add('hidden');
         }
@@ -426,9 +589,26 @@
         }
     }
 
+    // Track API connection retry attempts
+    let apiRetryCount = 0;
+    const maxApiRetries = 5;
+    let apiRetryTimeout = null;
+
+    /**
+     * Fetch printer status from Moonraker API with automatic retry on failure
+     * Implements exponential backoff for connection errors
+     */
     async function fetchPrintStatus() {
         try {
             const response = await fetch(`http://${PRINTER_IP}/printer/objects/query?display_status&print_stats&virtual_sdcard&extruder&heater_bed&toolhead`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Reset retry count on successful fetch
+            apiRetryCount = 0;
+            
             const data = await response.json();
             
             const status = data.result.status;
@@ -562,14 +742,61 @@
             }
             
         } catch (error) {
-            document.getElementById('status').textContent = 'Connection Error';
-            document.getElementById('status').className = 'status-pill error';
-            console.error('Error fetching print status:', error);
-            updateDebug({ error: error?.message || String(error) });
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status-pill error';
+            
+            // Determine if this is a retryable error
+            const isNetworkError = error.message?.includes('Failed to fetch') || 
+                                   error.message?.includes('NetworkError') ||
+                                   error.message?.includes('TypeError');
+            
+            // Retry logic for network errors
+            if (isNetworkError && apiRetryCount < maxApiRetries) {
+                apiRetryCount++;
+                const delay = Math.min(2000 * Math.pow(2, apiRetryCount - 1), 30000); // 2s, 4s, 8s, 16s, 30s
+                
+                statusEl.textContent = `Retrying... (${apiRetryCount}/${maxApiRetries})`;
+                console.warn(`[OBS Print Progress] API connection failed, retrying in ${delay}ms (attempt ${apiRetryCount}/${maxApiRetries})...`);
+                
+                // Clear any existing retry timeout
+                if (apiRetryTimeout) {
+                    clearTimeout(apiRetryTimeout);
+                }
+                
+                // Schedule retry
+                apiRetryTimeout = setTimeout(() => {
+                    fetchPrintStatus();
+                }, delay);
+                
+                return; // Don't show full error yet
+            }
+            
+            // Provide more specific error messages for non-retryable or exhausted retries
+            if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+                statusEl.textContent = `Unreachable: ${PRINTER_IP}`;
+                console.error(`[OBS Print Progress] Cannot connect to printer at ${PRINTER_IP}. Check IP address and network connection.`);
+            } else if (error.message?.includes('HTTP 401') || error.message?.includes('HTTP 403')) {
+                statusEl.textContent = 'Authentication Error';
+                console.error('[OBS Print Progress] Authentication required. Check Moonraker configuration.');
+            } else if (error.message?.includes('HTTP 404')) {
+                statusEl.textContent = 'API Not Found';
+                console.error('[OBS Print Progress] Moonraker API endpoint not found. Verify Moonraker is running.');
+            } else {
+                statusEl.textContent = 'Connection Error';
+                console.error('[OBS Print Progress] Error fetching print status:', error);
+            }
+            
+            updateDebug({ error: error?.message || String(error), retries: apiRetryCount });
             hideThumbnail();
         }
     }
 
+    /**
+     * Display configuration error to user and in console
+     * Shows error in status pill and debug info area
+     * 
+     * @param {string} msg - Error message to display
+     */
     function showConfigError(msg) {
         console.error(msg);
         const statusElement = document.getElementById('status');
@@ -584,6 +811,11 @@
         }
     }
 
+    /**
+     * Update chamber temperature display
+     * Fetches current chamber temp and updates UI chip
+     * Shows/hides chip based on availability and SHOW_CHAMBER setting
+     */
     async function updateChamber() {
         const chamberChip = document.getElementById('chamberChip');
         if (!chamberChip) return;
@@ -600,6 +832,12 @@
         }
     }
 
+    /**
+     * Fetch chamber temperature from Klipper
+     * Tries cached object name first, then iterates through known candidates
+     * 
+     * @returns {Promise<{current: number, target: number}|null>} Temperature data or null if unavailable
+     */
     async function fetchChamberTemp() {
         const objName = await getChamberObjectName();
         if (objName) {
@@ -620,6 +858,12 @@
         return null;
     }
 
+    /**
+     * Get the chamber temperature sensor object name from Klipper
+     * Returns cached name if available, otherwise searches object list
+     * 
+     * @returns {Promise<string|null>} Klipper object name or null if not found
+     */
     async function getChamberObjectName() {
         if (chamberObjectName) return chamberObjectName;
         const objects = await fetchObjectList();
@@ -636,6 +880,12 @@
         return null;
     }
 
+    /**
+     * Fetch list of all Klipper objects from printer
+     * Caches result for 30 seconds to avoid excessive API calls
+     * 
+     * @returns {Promise<string[]|null>} Array of object names or null on error
+     */
     async function fetchObjectList() {
         const now = Date.now();
         if (objectListCache && now - objectListFetchedAt < 30000) {
@@ -657,6 +907,12 @@
         return null;
     }
 
+    /**
+     * Query a specific Klipper object by name
+     * 
+     * @param {string} objName - Klipper object name (e.g., 'temperature_sensor chamber')
+     * @returns {Promise<Object|null>} Object data or null on error
+     */
     async function querySingleObject(objName) {
         try {
             const resp = await fetch(`http://${PRINTER_IP}/printer/objects/query?${encodeURIComponent(objName)}`);
@@ -671,6 +927,13 @@
         }
     }
 
+    /**
+     * Parse temperature data from Klipper object
+     * Handles various temperature field names and formats
+     * 
+     * @param {Object} entry - Temperature object from Klipper
+     * @returns {{current: number, target: number}|null} Parsed temperature data
+     */
     function parseTempEntry(entry) {
         if (!entry) return null;
         const current = Math.round(entry.temperature ?? entry.temp ?? entry.current ?? entry.temper);
@@ -683,6 +946,14 @@
         };
     }
 
+    /**
+     * Format layer information for display
+     * Handles various combinations of current/total availability
+     * 
+     * @param {number|null} current - Current layer number
+     * @param {number|null} total - Total layer count
+     * @returns {string} Formatted string (e.g., '45 / 120', '45 / --', '--')
+     */
     function formatLayerInfo(current, total) {
         const hasCurrent = current !== null && current !== undefined && current > 0;
         const hasTotal = total !== null && total !== undefined && total > 0;
@@ -693,6 +964,12 @@
         return `-- / ${total}`;  // Show total when current unknown
     }
 
+    /**
+     * Format seconds into HH:MM:SS or MM:SS display
+     * 
+     * @param {number} seconds - Time in seconds
+     * @returns {string} Formatted time string or '--' if invalid
+     */
     function formatTime(seconds) {
         if (!seconds || seconds < 0) return '--';
         

@@ -1,20 +1,11 @@
 {
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "Configuration file for OBS Print Progress overlay. Define multiple printers and select which one to display using ?printer=id query parameter in your OBS browser source URL.",
   "printers": [
     {
-      "id": "hoss",
-      "name": "Hoss (SV08)",
-      "ip": "hoss.dracarsfamily",
-      "camera": "",
-      "flipHorizontal": false,
-      "flipVertical": true,
-      "showChamber": true,
-      "updateInterval": 2000,
-      "debug": false
-    },
-    {
-      "id": "sam",
-      "name": "Sam (SV06 Plus)",
-      "ip": "sam.dracarsfamily",
+      "id": "printer1",
+      "name": "Printer 1",
+      "ip": "printer1.local",
       "camera": "",
       "flipHorizontal": false,
       "flipVertical": false,
@@ -28,21 +19,23 @@
       "ip": "printer2.local",
       "camera": "",
       "flipHorizontal": false,
-      "flipVertical": false,
-      "showChamber": false,
-      "updateInterval": 2000,
-      "debug": false
-    },
-    {
-      "id": "printer1",
-      "name": "Printer 1",
-      "ip": "printer.local",
-      "camera": "",
-      "flipHorizontal": false,
-      "flipVertical": false,
-      "showChamber": false,
+      "flipVertical": true,
+      "showChamber": true,
       "updateInterval": 2000,
       "debug": false
     }
-  ]
+  ],
+  "__comments": {
+    "id": "(required) Unique identifier for the printer. Used in URL query parameter: ?printer=printer1",
+    "name": "(required) Display name shown in the overlay",
+    "ip": "(required) Printer IP address or hostname. Moonraker must be accessible at http://IP:PORT (default port 7125)",
+    "camera": "(optional) Full camera stream URL. If empty, auto-generates: http://IP/webcam/?action=stream",
+    "flipHorizontal": "(optional, default: false) Mirror camera horizontally",
+    "flipVertical": "(optional, default: false) Flip camera vertically",
+    "showChamber": "(optional, default: false) Show chamber temperature if available. Auto-detects common sensor names",
+    "updateInterval": "(optional, default: 2000) How often to poll printer status in milliseconds",
+    "debug": "(optional, default: false) Enable debug logging in browser console. Can also be enabled via ?debug=true query parameter",
+    "usage": "In OBS Browser Source URL: file:///path/to/printer.html?printer=hoss to select the 'hoss' printer configuration"
+  }
 }
+

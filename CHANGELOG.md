@@ -1,0 +1,126 @@
+# Changelog
+
+All notable changes to OBS Print Progress will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.3.0] - 2025-12-04
+
+### Added
+
+- Camera feed retry logic with exponential backoff (3 attempts: 1s, 2s, 4s)
+- API connection retry logic with exponential backoff (5 attempts: 2s, 4s, 8s, 16s, 30s)
+- Configuration validation for printers.json with helpful error messages
+- Comprehensive JSDoc documentation for all major functions
+- Detailed field descriptions in printers.json.example with usage examples
+- Quick Start guide in README for new users
+- Enhanced troubleshooting documentation in README with 6 major scenarios
+- Query parameter documentation with examples
+- CHANGELOG.md to track project changes
+- LICENSE file (MIT)
+
+### Changed
+
+- Improved theme-custom.css.example with 6 professional color themes (Blue, Purple, Green, Orange, Red, Cyan)
+- Enhanced error messages with specific categorization (Unreachable, Authentication Error, API Not Found)
+- Better configuration validation with duplicate ID detection
+- Replaced personal printer names with generic examples (printer1, printer2) throughout documentation
+- Improved README structure with proper markdown formatting and blank lines
+- Updated documentation to match actual theme files
+- Camera setup now includes automatic retry mechanism
+
+### Fixed
+
+- Markdown linting issues in README and CHANGELOG
+- Removed duplicate sections in README
+- Corrected theme documentation references
+
+## [1.2.0] - 2025-12-04
+
+### Added
+
+- Comprehensive JSDoc-style code documentation throughout
+- Filename-based metadata extraction for layer height (e.g., `_0.2_` patterns)
+- Filename-based estimated time parsing (e.g., `1h46m`, `2h30m`)
+- Detailed debug logging for configuration and metadata loading
+- Enhanced G-code metadata parsing with additional pattern recognition
+- Automatic layer_count calculation from object_height when layer_height is known
+
+### Changed
+
+- Documented all major functions and their purposes
+- Clarified fallback strategies for metadata loading
+- Improved regex patterns to match more filename conventions
+- Enhanced debug output with comprehensive state information
+
+### Fixed
+
+- parseBool hoisting issue resolved
+- Cache buster added to JS script tag for proper updates
+
+## [1.1.0] - 2025-11-XX
+
+### Added
+
+- Theme system with CSS variables for easy color customization
+- Three example themes: blue (default), green, and red
+- Automatic `theme-custom.css` loading (git-ignored for safe updates)
+- Thumbnail glow effect with customizable colors
+- Loading state for thumbnail preview with soft glow
+- Chamber temperature auto-detection from multiple sensor name patterns
+- **Floating G-code thumbnail preview with dynamic positioning** (Thanks to [@CHA3dPrinting](https://github.com/CHA3dPrinting)!)
+- **G-code thumbnail extraction from embedded base64 images** (Thanks to [@CHA3dPrinting](https://github.com/CHA3dPrinting)!)
+- Inner glow effect on thumbnails
+
+### Changed
+
+- Optimized metadata fetching to reduce 404 errors (single attempt vs 5)
+- Reduced thumbnail fetch size from 250KB to 100KB for faster loading
+- Non-blocking chamber detection for improved startup performance
+- Silenced metadata 404 warnings (auto-retry on next cycle)
+- Slicer time now displays even when paused/idle
+- Elapsed time shows correctly when paused
+
+### Fixed
+
+- Camera URL now properly auto-generates from JSON config IP
+- JSON loading properly merged with thumbnail support
+- Broken image icons hidden until successful load
+- Camera feed hidden until successfully loaded
+- Thumbnail hidden until valid data ready
+
+## [1.0.0] - 2025-XX-XX
+
+### Added
+
+- Initial release with core functionality
+- Multi-printer support via `printers.json` configuration
+- Real-time print progress tracking from Klipper/Moonraker
+- Progress bar with percentage display
+- Layer information (current/total)
+- Temperature monitoring (hotend, bed, optional chamber)
+- Time estimates (progress-based, slicer, elapsed)
+- Live camera feed with flip options (horizontal/vertical)
+- Query parameter printer selection (`?printer=<id>`)
+- Inline configuration fallback
+- Debug mode for troubleshooting
+- Start scripts for Windows and macOS/Linux
+- Comprehensive README documentation
+
+### Features
+
+- Automatic metadata extraction from G-code files
+- Fallback layer/time calculations
+- Theme system with CSS variables
+- Responsive overlay design
+- CORS-compatible configuration loading
+- Support for file:// and http:// contexts
+
+[Unreleased]: https://github.com/cdracars/OBS-Print-Progress/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/cdracars/OBS-Print-Progress/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/cdracars/OBS-Print-Progress/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/cdracars/OBS-Print-Progress/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/cdracars/OBS-Print-Progress/releases/tag/v1.0.0

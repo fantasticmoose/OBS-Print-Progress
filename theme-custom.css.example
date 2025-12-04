@@ -1,5 +1,5 @@
-/* Custom Theme Example - CRAZY COLORS EDITION
-   This is an example showing the theme system is working!
+/* Custom Theme Example
+   Customize your overlay colors by copying this file to "theme-custom.css"
    
    To use:
    1. Copy this file to "theme-custom.css" (without .example)
@@ -14,13 +14,70 @@
    --theme-progress: Progress bar color (if different from primary)
    --theme-glow: Loading state glow color and opacity
    --theme-thumbnail-glow: Thumbnail outer and inner glow color
+   
+   Example themes below - uncomment one to use it!
 */
 
+/* Default Blue Theme (already active in print-progress.css) */
+/*
 :root {
-    /* WILD Rainbow Theme - You'll DEFINITELY know if this is active! */
-    --theme-primary: #ff00ff;        /* Hot magenta */
-    --theme-secondary: #00ffff;      /* Cyan */
-    --theme-progress: #ff00ff;       /* Magenta progress */
-    --theme-glow: rgba(255, 0, 255, 0.3);  /* Bright magenta glow */
-    --theme-thumbnail-glow: rgba(0, 255, 255, 0.7);  /* Intense cyan thumbnail glow */
+    --theme-primary: #3A86FF;
+    --theme-secondary: #1E5ED9;
+    --theme-progress: #3A86FF;
+    --theme-glow: rgba(58, 134, 255, 0.15);
+    --theme-thumbnail-glow: rgba(58, 134, 255, 0.4);
 }
+*/
+
+/* Purple/Violet Theme */
+:root {
+    --theme-primary: #8B5CF6;        /* Rich purple */
+    --theme-secondary: #6D28D9;      /* Deep violet */
+    --theme-progress: #8B5CF6;       /* Purple progress */
+    --theme-glow: rgba(139, 92, 246, 0.15);  /* Soft purple glow */
+    --theme-thumbnail-glow: rgba(139, 92, 246, 0.4);  /* Purple thumbnail glow */
+}
+
+/* Green/Emerald Theme */
+/*
+:root {
+    --theme-primary: #10B981;
+    --theme-secondary: #059669;
+    --theme-progress: #10B981;
+    --theme-glow: rgba(16, 185, 129, 0.15);
+    --theme-thumbnail-glow: rgba(16, 185, 129, 0.4);
+}
+*/
+
+/* Orange/Amber Theme */
+/*
+:root {
+    --theme-primary: #F59E0B;
+    --theme-secondary: #D97706;
+    --theme-progress: #F59E0B;
+    --theme-glow: rgba(245, 158, 11, 0.15);
+    --theme-thumbnail-glow: rgba(245, 158, 11, 0.4);
+}
+*/
+
+/* Red/Rose Theme */
+/*
+:root {
+    --theme-primary: #EF4444;
+    --theme-secondary: #DC2626;
+    --theme-progress: #EF4444;
+    --theme-glow: rgba(239, 68, 68, 0.15);
+    --theme-thumbnail-glow: rgba(239, 68, 68, 0.4);
+}
+*/
+
+/* Cyan/Teal Theme */
+/*
+:root {
+    --theme-primary: #06B6D4;
+    --theme-secondary: #0891B2;
+    --theme-progress: #06B6D4;
+    --theme-glow: rgba(6, 182, 212, 0.15);
+    --theme-thumbnail-glow: rgba(6, 182, 212, 0.4);
+}
+*/
