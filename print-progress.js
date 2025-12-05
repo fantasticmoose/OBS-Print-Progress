@@ -642,8 +642,22 @@
             if (state === 'printing') {
                 statusElement.className = 'status-pill ok';
                 
-                // Prefer the virtual_sdcard progress (matches what Mainsail shows), fall back to display_status
-                const rawProgress = virtualSdcard.progress ?? displayStatus.progress ?? 0;
+                // Use virtualSdcard.progress directly - this is what Klipper reports
+                // and what Mainsail displays. Calculation from file_position can be
+                // inaccurate due to buffering, compression, and other factors.
+                const rawProgress = virtualSdcard?.progress ?? displayStatus?.progress ?? 0;
+                
+                if (DEBUG) {
+                    console.log('[OBS Print Progress] Progress values:', {
+                        virtualSdcard_progress: virtualSdcard?.progress,
+                        displayStatus_progress: displayStatus?.progress,
+                        file_position: virtualSdcard?.file_position,
+                        file_size: virtualSdcard?.file_size,
+                        using_progress: rawProgress,
+                        percentage: Math.round(rawProgress * 100)
+                    });
+                }
+                
                 const progress = Math.max(0, Math.min(1, Number(rawProgress) || 0));
                 const percentage = Math.round(progress * 100);
                 document.getElementById('progressBar').style.width = percentage + '%';
@@ -1228,25 +1242,29 @@
             }
         }
         
-        // Try to extract estimated time from filename (e.g., "1h46m", "2h30m", "45m")
+        // Try to extract estimated time from filename (e.g., "1d1h42m", "1h46m", "2h30m", "45m")
         if (metadataCache.data && !metadataCache.data.estimated_time) {
-            const timeMatch = filename.match(/(\d+)h(\d+)m|(\d+)h|(\d+)m(?!m)/i);
-            if (timeMatch) {
+            // Match patterns: 1d2h30m, 2h30m, 1h, 45m, 1d, etc.
+            const timeMatch = filename.match(/(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?/i);
+            if (timeMatch && (timeMatch[1] || timeMatch[2] || timeMatch[3])) {
                 let seconds = 0;
-                if (timeMatch[1] && timeMatch[2]) {
-                    // Format: "1h46m"
-                    seconds = (parseInt(timeMatch[1]) * 3600) + (parseInt(timeMatch[2]) * 60);
-                } else if (timeMatch[3]) {
-                    // Format: "2h"
-                    seconds = parseInt(timeMatch[3]) * 3600;
-                } else if (timeMatch[4]) {
-                    // Format: "45m"
-                    seconds = parseInt(timeMatch[4]) * 60;
+                
+                // Days
+                if (timeMatch[1]) {
+                    seconds += parseInt(timeMatch[1]) * 86400;  // 24 * 3600
+                }
+                // Hours
+                if (timeMatch[2]) {
+                    seconds += parseInt(timeMatch[2]) * 3600;
+                }
+                // Minutes
+                if (timeMatch[3]) {
+                    seconds += parseInt(timeMatch[3]) * 60;
                 }
                 
                 if (seconds > 0) {
                     metadataCache.data.estimated_time = seconds;
-                    if (DEBUG) console.log('[OBS Print Progress] Inferred estimated_time from filename:', seconds, 'seconds');
+                    if (DEBUG) console.log('[OBS Print Progress] Inferred estimated_time from filename:', seconds, 'seconds', `(${timeMatch[0]})`);
                 }
             }
         }
@@ -1306,39 +1324,29 @@
         try {
             if (DEBUG) console.log('[OBS Print Progress] Fetching metadata from gcode header for:', fileParam);
             
-            const candidates = [
-                fileParam,
-                fileParam.replace(/^gcodes\//, ''),
-                `gcodes/${fileParam}`,
-                `printer_data/${fileParam}`,
-                `gcode_files/${fileParam.replace(/^gcodes\//, '')}`
-            ];
-
-            for (const candidate of candidates) {
-                const safePath = encodeURI(candidate);
-                const url = `http://${PRINTER_IP}/server/files/${safePath}`;
+            // Use the filename directly as provided by Klipper
+            const safePath = encodeURI(fileParam);
+            const url = `http://${PRINTER_IP}/server/files/${safePath}`;
+            
+            if (DEBUG) console.log('[OBS Print Progress] Trying gcode path:', url);
                 
-                if (DEBUG) console.log('[OBS Print Progress] Trying gcode path:', url);
-                
-                const response = await fetch(url, {
-                    headers: { Range: 'bytes=0-65535' }
-                });
+            const response = await fetch(url, {
+                headers: { Range: 'bytes=0-65535' }
+            });
 
-                if (!response.ok) {
-                    if (DEBUG) console.log('[OBS Print Progress] Gcode fetch failed:', response.status);
-                    continue;
-                }
-
-                if (DEBUG) console.log('[OBS Print Progress] Gcode header fetched successfully from:', candidate);
-                const text = await response.text();
-                const parsed = parseGcodeHeader(text);
-                if (parsed) {
-                    if (DEBUG) console.log('[OBS Print Progress] Successfully parsed gcode metadata');
-                    return parsed;
-                }
+            if (!response.ok) {
+                if (DEBUG) console.log('[OBS Print Progress] Gcode fetch failed:', response.status);
+                return null;
             }
 
-            if (DEBUG) console.log('[OBS Print Progress] No gcode metadata found from any path');
+            if (DEBUG) console.log('[OBS Print Progress] Gcode header fetched successfully');
+            const text = await response.text();
+            const parsed = parseGcodeHeader(text);
+            if (parsed) {
+                if (DEBUG) console.log('[OBS Print Progress] Successfully parsed gcode metadata');
+                return parsed;
+            }
+
             return null;
         } catch (err) {
             if (DEBUG) console.error('[OBS Print Progress] Error fetching gcode metadata:', err);
@@ -1413,6 +1421,20 @@
                 meta.layer_height = Number(heightMatch[1]);
                 if (DEBUG) console.log('[OBS Print Progress] Inferred layer height from text:', meta.layer_height);
             }
+            
+            // Last resort: try common layer heights (0.2mm is most common)
+            if (!meta.layer_height) {
+                const commonHeights = [0.2, 0.15, 0.3, 0.25, 0.1];
+                for (const height of commonHeights) {
+                    const calculatedLayers = Math.round(meta.object_height / height);
+                    // Sanity check: typical prints have 50-5000 layers
+                    if (calculatedLayers >= 50 && calculatedLayers <= 5000) {
+                        meta.layer_height = height;
+                        if (DEBUG) console.log(`[OBS Print Progress] Assumed ${height}mm layer height (calculated ${calculatedLayers} layers)`);
+                        break;
+                    }
+                }
+            }
         }
         
         // Additional fallback: calculate layer_count from object_height if we have layer_height
@@ -1432,19 +1454,9 @@
     function normalizeFilename(filename) {
         if (!filename) return null;
         
-        // Remove common path prefixes
-        let name = filename.replace(/^~\//, '')
-                           .replace(/^\//, '')
-                           .replace(/^printer_data\/gcodes\//, 'gcodes/')
-                           .replace(/^gcode_files\//, 'gcodes/')
-                           .replace(/^files\//, '');
-        
-        // If it doesn't start with gcodes/, add it
-        if (!name.startsWith('gcodes/')) {
-            name = `gcodes/${name}`;
-        }
-        
-        return name;
+        // Klipper's print_stats.filename is already the correct path for the API
+        // Just return it as-is, no manipulation needed
+        return filename;
     }
 
     function formatFilename(filename) {

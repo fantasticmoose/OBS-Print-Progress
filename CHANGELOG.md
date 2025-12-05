@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-12-05
+
+### Added
+
+- **Comprehensive Test Suite** - 28 TDD/AAA tests covering all critical functionality
+  - 4 progress calculation tests
+  - 2 layer calculation tests
+  - 3 time parsing tests
+  - 4 time calculation tests
+  - 3 layer formatting tests
+  - 3 metadata parsing tests
+  - 2 percentage calculation tests
+  - 2 null safety tests
+  - 5 filename handling tests
+- Test infrastructure in `tests/` folder with `print-progress.test.js`
+- TESTING.md documentation with TDD best practices and usage guide
+- Tests validate progress, layer counts, time parsing, metadata extraction, and null handling
+
+### Changed
+
+- **BREAKING FIX: Progress calculation** - Now uses `virtualSdcard.progress` directly instead of calculating from `file_position/file_size`
+  - Matches Mainsail's display exactly
+  - Accounts for buffering, compression, and lookahead planning
+  - Prevents progress discrepancies (e.g., overlay showing 54% when Mainsail shows 96%)
+- **Simplified filename handling** - Removed unnecessary path manipulation
+  - No longer adds/strips `gcodes/` prefix or tries multiple path variations
+  - Uses Klipper's `print_stats.filename` directly as provided
+  - Trusts Moonraker's file path structure
+- Enhanced time parsing regex to support day format (`1d1h42m` now correctly parses as 25.7 hours)
+- Improved layer height extraction with better regex patterns
+- README updated with Development & Testing section
+
+### Fixed
+
+- Progress percentage now matches Mainsail exactly (was off by up to 40% in some cases)
+- Filename paths no longer manipulated incorrectly, respecting custom configurations
+- Time parsing for multi-day prints (e.g., `1d1h42m` previously parsed as just `1h42m`)
+- Layer count calculation now attempts common layer heights (0.2mm, 0.15mm, 0.3mm) as fallback
+- DEBUG variable hoisting issue that prevented debug logging from working correctly
+
+### Security
+
+- All tests pass before commits to prevent regressions
+- Filename handling validated to prevent path manipulation vulnerabilities
+
 ## [1.3.0] - 2025-12-04
 
 ### Added

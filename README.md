@@ -127,6 +127,43 @@ The overlay supports custom color themes. Several example themes are included in
 
 The custom theme is **automatically loaded** if it exists - no need to modify any HTML!
 
+## Development & Testing
+
+This project uses **Test-Driven Development (TDD)** with the **Arrange-Act-Assert (AAA)** pattern to ensure reliability and prevent regressions.
+
+### Running Tests
+
+```powershell
+node tests/print-progress.test.js
+```
+
+All tests must pass before committing changes. See [TESTING.md](TESTING.md) for detailed testing guide.
+
+### Test Coverage
+
+- **Progress Calculation** - 4 tests verifying virtualSdcard.progress usage and edge cases
+- **Layer Calculation** - 2 tests for layer count from metadata and fallback heights
+- **Time Parsing** - 3 tests validating filename parsing for "1d1h42m" and layer heights
+- **Time Calculation** - 4 tests for formatting, remaining time, and edge cases
+- **Layer Formatting** - 3 tests for "current / total" display with missing data
+- **Metadata Parsing** - 3 tests for gcode comment parsing (layer height, estimated time)
+- **Percentage Calculation** - 2 tests for conversion and rounding edge cases
+- **Null Safety** - 2 tests for optional chaining (?.) and nullish coalescing (??)
+
+**Total: 23 comprehensive tests** - Run with `node tests/print-progress.test.js`
+
+### Contributing
+
+When adding features or fixing bugs:
+
+1. Write test first (TDD approach)
+2. Run test - should fail initially
+3. Implement fix in print-progress.js
+4. Run test again - should pass
+5. Commit test and fix together
+
+This approach prevents regressions and documents expected behavior.
+
 ## Troubleshooting
 
 ### Camera Feed Not Loading
